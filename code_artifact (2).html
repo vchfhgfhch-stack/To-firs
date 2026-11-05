@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سوداية ترانس | منصة نقل البضائع (حتى 2 طن) - تمنراست</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet JS & CSS for interactive map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Google Fonts: Cairo & Tajawal -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            orange: '#F97316',
+                            orangeHover: '#EA580C',
+                            dark: '#0F172A',
+                            navy: '#1E293B',
+                            lightBg: '#F8FAFC',
+                            accent: '#FB923C'
+                        }
+                    },
+                    fontFamily: {
+                        cairo: ['Cairo', 'sans-serif'],
+                        tajawal: ['Tajawal', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #F8FAFC;
+            overflow-x: hidden;
+        }
+        
+        .hero-pattern {
+            background-color: #F8FAFC;
+            background-image: radial-gradient(#1E293B 0.75px, transparent 0.75px), radial-gradient(#F97316 0.75px, #F8FAFC 0.75px);
+            background-size: 30px 30px;
+            background-position: 0 0, 15px 15px;
+        }
+
+        .gradient-card {
+            background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+        }
+
+        .orange-glow {
+            box-shadow: 0 10px 30px -10px rgba(249, 115, 22, 0.4);
+        }
+
+        #leafletMap {
+            height: 420px;
+            width: 100%;
+            border-radius: 1.5rem;
+            z-index: 10;
+        }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: 1rem;
+            font-family: 'Cairo', sans-serif;
+            direction: rtl;
+            text-align: right;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Pulse animation for active tracking */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 0.4; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .pulse-effect {
+            animation: pulse-ring 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-brand-orange selection:text-white pb-16 sm:pb-0">
+
+    <!-- Header Navigation -->
+    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            
+            <!-- Mobile Menu & Phone -->
+            <div class="flex items-center gap-3">
+                <button id="menuBtn" class="p-2.5 rounded-2xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+                
+                <a href="tel:0657892000" class="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-orange-50 text-brand-orange border border-orange-200 text-xs sm:text-sm font-bold hover:bg-orange-100 transition-colors">
+                    <i class="fa-solid fa-phone font-bold"></i>
+                    <span>0657892000</span>
+                </a>
+            </div>
+
+            <!-- Brand Logo -->
+            <a href="#" class="flex items-center gap-3 group">
+                <div class="flex flex-col text-right">
+                    <span class="text-2xl font-black text-brand-dark tracking-tight group-hover:text-brand-orange transition-colors">سوداية ترانس</span>
+                    <span class="text-[10px] tracking-widest font-bold text-slate-400 uppercase -mt-1">SOUDAYA TRANS • نقل بضائع (حتى 2 طن)</span>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-brand-dark flex items-center justify-center relative overflow-hidden shadow-lg border-2 border-brand-orange">
+                    <i class="fa-solid fa-truck-ramp-box text-brand-orange text-xl transform -scale-x-100 group-hover:scale-110 transition-transform"></i>
+                    <div class="absolute -bottom-1 -left-1 w-3.5 h-3.5 bg-brand-orange rounded-full"></div>
+                </div>
+            </a>
+        </div>
+    </header>
+
+    <!-- Drawer Navigation -->
+    <div id="drawer" class="fixed inset-0 z-50 bg-brand-dark/60 backdrop-blur-sm hidden transition-opacity">
+        <div class="fixed top-0 right-0 h-full w-80 bg-white shadow-2xl p-6 flex flex-col justify-between transform transition-transform duration-300 translate-x-full" id="drawerContent">
+            <div>
+                <div class="flex justify-between items-center pb-6 border-b border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-brand-orange flex items-center justify-center text-white">
+                            <i class="fa-solid fa-truck-fast text-sm"></i>
+                        </div>
+                        <span class="font-bold text-brand-dark">القائمة الرئيسية</span>
+                    </div>
+                    <button id="closeDrawer" class="text-slate-400 hover:text-slate-600 p-2">
+                        <i class="fa-solid fa-xmark text-xl"></i>
+                    </button>
+                </div>
+                
+                <nav class="mt-6 flex flex-col gap-2 font-semibold">
+                    <a href="#hero" class="flex items-center gap-3 p-3 rounded-xl bg-orange-50 text-brand-orange">
+                        <i class="fa-solid fa-house"></i> الرئيسية
+                    </a>
+                    <a href="#bookingSection" class="flex items-center gap-3 p-3 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-calendar-check text-brand-orange"></i> حجز رحلة أونلاين
+                    </a>
+                    <a href="#destinations" class="flex items-center gap-3 p-3 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-tags"></i> قائمة الأسعار الثابتة
+                    </a>
+                    <a href="#mapSection" class="flex items-center gap-3 p-3 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-map-location-dot"></i> الخريطة التفاعلية
+                    </a>
+                    <a href="#trackingSection" class="flex items-center gap-3 p-3 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-magnifying-glass-location"></i> تتبع الشحنة
+                    </a>
+                    <a href="#contactSection" class="flex items-center gap-3 p-3 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
+                        <i class="fa-solid fa-headset"></i> التواصل والدعم
+                    </a>
+                </nav>
+            </div>
+
+            <div class="pt-6 border-t border-slate-100 space-y-3">
+                <a href="tel:0657892000" class="w-full py-3 bg-brand-orange text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-md">
+                    <i class="fa-solid fa-phone"></i>
+                    <span>إتصل بالهاتف: 0657892000</span>
+                </a>
+                <p class="text-xs text-slate-400 text-center">سوداية ترانس - تمنراست © 2026</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hero Section -->
+    <section id="hero" class="relative pt-8 pb-12 md:pt-12 md:pb-16 hero-pattern border-b border-slate-200/60">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                
+                <!-- Hero Info -->
+                <div class="lg:col-span-7 space-y-6 text-right">
+                    
+                    <div class="inline-flex items-center gap-2 bg-orange-100/90 border border-orange-200 px-4 py-2 rounded-full text-brand-orange font-bold text-xs sm:text-sm">
+                        <i class="fa-solid fa-weight-hanging"></i>
+                        <span>متخصصون حصرياً في نقل البضائع (حمولات حتى 2 طن)</span>
+                    </div>
+
+                    <h1 class="text-3xl sm:text-5xl font-black text-brand-dark leading-tight">
+                        نقل البضائع من تمنراست 
+                        <span class="block text-brand-orange mt-2">إلى جميع بلديات الولاية</span>
+                    </h1>
+
+                    <p class="text-base sm:text-lg text-slate-600 leading-relaxed font-tajawal max-w-2xl">
+                        خدمة نقل البضائع، الأثاث والمعدات بأسعار ثابتة ومحددة مسبقاً. احجز شاحنتك الآن أونلاين واحصل على كود تتبع مباشر لشحنتك!
+                    </p>
+
+                    <!-- Fast Action Buttons -->
+                    <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                        <a href="#bookingSection" class="px-7 py-4 bg-brand-orange hover:bg-brand-orangeHover text-white font-bold rounded-2xl shadow-lg orange-glow flex items-center justify-center gap-3 transition-all">
+                            <i class="fa-solid fa-calendar-plus text-lg"></i>
+                            <span class="text-base">احجز رحلتك أونلاين الآن</span>
+                        </a>
+                        <a href="tel:0657892000" class="px-7 py-4 bg-brand-dark hover:bg-slate-800 text-white font-bold rounded-2xl flex items-center justify-center gap-3 transition-all shadow-md">
+                            <i class="fa-solid fa-phone text-brand-orange"></i>
+                            <span class="text-base">0657892000</span>
+                        </a>
+                    </div>
+
+                    <!-- Small Badges -->
+                    <div class="flex flex-wrap gap-3 pt-2">
+                        <div class="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
+                            <i class="fa-solid fa-shield-check text-brand-orange"></i>
+                            <span>ضمان أمان البضاعة</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
+                            <i class="fa-solid fa-barcode text-brand-orange"></i>
+                            <span>توليد كود تتبع تلقائي</span>
+                        </div>
+                        <div class="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
+                            <i class="fa-solid fa-truck-fast text-brand-orange"></i>
+                            <span>شاحنات بسعة 2 طن</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fast Destinations Overview Banner -->
+                <div class="lg:col-span-5">
+                    <div class="gradient-card rounded-3xl p-6 text-white shadow-2xl relative border border-slate-700">
+                        <div class="flex items-center justify-between pb-4 border-b border-slate-700">
+                            <div>
+                                <h3 class="text-lg font-bold flex items-center gap-2">
+                                    <i class="fa-solid fa-location-dot text-brand-orange"></i>
+                                    <span>وجهات تمنراست الثابتة</span>
+                                </h3>
+                                <p class="text-xs text-slate-400 mt-0.5">انطلاقاً من مقر الولاية (سعة 2 طن)</p>
+                            </div>
+                            <span class="text-xs bg-brand-orange/20 text-brand-orange border border-brand-orange/30 px-3 py-1 rounded-full font-bold">7 بلديات</span>
+                        </div>
+
+                        <div class="mt-4 space-y-2">
+                            <div class="flex items-center justify-between p-2.5 bg-slate-800/60 rounded-xl hover:bg-slate-800 transition-colors text-sm">
+                                <span class="font-bold flex items-center gap-2">أبلسة <span class="text-xs text-slate-400">(100 كم)</span></span>
+                                <span class="text-brand-orange font-black">10,000 دج</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2.5 bg-slate-800/60 rounded-xl hover:bg-slate-800 transition-colors text-sm">
+                                <span class="font-bold flex items-center gap-2">سيلت / عين أمقل / إدلس</span>
+                                <span class="text-brand-orange font-black">15,000 دج</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2.5 bg-slate-800/60 rounded-xl hover:bg-slate-800 transition-colors text-sm">
+                                <span class="font-bold flex items-center gap-2">تاظروك <span class="text-xs text-slate-400">(150 كم)</span></span>
+                                <span class="text-brand-orange font-black">20,000 دج</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2.5 bg-slate-800/60 rounded-xl hover:bg-slate-800 transition-colors text-sm">
+                                <span class="font-bold flex items-center gap-2">تينزواتين <span class="text-xs text-slate-400">(500 كم)</span></span>
+                                <span class="text-brand-orange font-black">60,000 دج</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2.5 bg-slate-800/60 rounded-xl hover:bg-slate-800 transition-colors text-sm">
+                                <span class="font-bold flex items-center gap-2">تيمياوين <span class="text-xs text-slate-400">(650 كم)</span></span>
+                                <span class="text-brand-orange font-black">70,000 دج</span>
+                            </div>
+                        </div>
+
+                        <a href="#bookingSection" class="mt-4 w-full py-3 bg-brand-orange/20 hover:bg-brand-orange text-brand-orange hover:text-white border border-brand-orange/50 rounded-xl font-bold text-center block transition-all text-sm">
+                            احجز شحنتك إلى إحدى هذه البلديات
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION: ONLINE BOOKING FORM -->
+    <section id="bookingSection" class="py-12 bg-white border-b border-slate-200/80">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6">
+            <div class="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-10 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-2 h-full bg-brand-orange"></div>
+                
+                <div class="text-center max-w-xl mx-auto mb-8">
+                    <span class="inline-block px-3 py-1 bg-orange-100 text-brand-orange font-bold text-xs rounded-full mb-2">حجز سريع ومباشر</span>
+                    <h2 class="text-2xl sm:text-3xl font-black text-brand-dark">احجز رحلة نقل البضائع أونلاين</h2>
+                    <p class="text-slate-500 text-sm mt-1">سيتم توليد كود تتبع فريد لشحنتك فور إتمام الحجز</p>
+                </div>
+
+                <form id="bookingForm" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        
+                        <!-- Destination Selection -->
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                <i class="fa-solid fa-map-pin text-brand-orange"></i> اختر وجهة الوصول من تمنراست: *
+                            </label>
+                            <select id="bookDestination" required class="w-full px-4 py-3.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange font-bold text-slate-800 bg-white">
+                                <option value="" disabled selected>-- اختر البلدية المطلوبة --</option>
+                                <option value="أبلسة" data-price="10000" data-dist="100">أبلسة - 10,000 دج (100 كم)</option>
+                                <option value="سيلت" data-price="15000" data-dist="140">سيلت - 15,000 دج (140 كم)</option>
+                                <option value="عين أمقل" data-price="15000" data-dist="130">عين أمقل - 15,000 دج (130 كم)</option>
+                                <option value="إدلس" data-price="15000" data-dist="210">إدلس - 15,000 دج (210 كم)</option>
+                                <option value="تاظروك" data-price="20000" data-dist="150">تاظروك - 20,000 دج (150 كم)</option>
+                                <option value="تينزواتين" data-price="60000" data-dist="500">تينزواتين - 60,000 دج (500 كم)</option>
+                                <option value="تيمياوين" data-price="70000" data-dist="650">تيمياوين - 70,000 دج (650 كم)</option>
+                            </select>
+                        </div>
+
+                        <!-- Sender Name -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">اسم المرسل الكافي: *</label>
+                            <input type="text" id="senderName" required placeholder="مثال: عبد الله التمنراستي" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange bg-white">
+                        </div>
+
+                        <!-- Phone Number -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">رقم الهاتف للتواصل: *</label>
+                            <input type="tel" id="senderPhone" required placeholder="06XXXXXXXX" pattern="[0-9]{10}" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange bg-white" dir="ltr">
+                        </div>
+
+                        <!-- Cargo Type -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">نوع البضاعة: *</label>
+                            <select id="cargoType" required class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-orange focus:border-brand-orange bg-white">
+                                <option value="أثاث ومقتنيات منزلية">أثاث ومقتنيات منزلية</option>
+                                <option value="مواد بناء أو تجهيزات">مواد بناء وتجهيزات</option>
+                                <option value="سلع تجارية وصناديق">سلع تجارية وصناديق</option>
+                                <option value="قطع غيار ومعدات">قطع غيار ومعدات</option>
+                                <option value="بضائع متنوعة">بضائع متنوعة أخرى</option>
+                            </select>
+                        </div>
+
+                        <!-- Weight (Max 2 tons) -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2 flex justify-between">
+                                <span>الوزن التقريبي (أقصى حد 2 طن):</span>
+                                <span id="weightValue" class="text-brand-orange font-bold">1000 كجم (1 طن)</span>
+                            </label>
+                            <input type="range" id="cargoWeight" min="100" max="2000" step="100" value="1000" class="w-full accent-brand-orange">
+                        </div>
+
+                    </div>
+
+                    <!-- Price Estimate Box -->
+                    <div id="priceBox" class="hidden p-4 rounded-2xl bg-orange-50 border border-orange-200 flex justify-between items-center">
+                        <div>
+                            <span class="text-xs text-slate-500 font-bold block">التكلفة الثابتة للرحلة:</span>
+                            <span id="calculatedPrice" class="text-2xl font-black text-brand-orange">-- دج</span>
+                        </div>
+                        <div class="text-left">
+                            <span class="text-xs text-slate-500 block">نقطة الانطلاق:</span>
+                            <span class="text-sm font-bold text-slate-800">تمنراست المقر</span>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all">
+                        <i class="fa-brands fa-whatsapp text-2xl"></i>
+                        <span>إرسال تفاصيل الحجز عبر الواتساب للشركة</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION: FULL PRICE LIST TABLE -->
+    <section id="destinations" class="py-12 bg-slate-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-2xl mx-auto mb-10">
+                <span class="px-3.5 py-1 bg-slate-200 text-slate-700 font-bold text-xs rounded-full">شفافية كاملة</span>
+                <h2 class="text-2xl sm:text-4xl font-black text-brand-dark mt-2">جدول الأسعار الثابتة والبلديات الـ 7</h2>
+                <p class="text-slate-500 text-sm mt-2">أسعار موحدة محددة انطلاقاً من تمنراست لشاحنات بسعة حمولة حتى 2 طن (2000 كجم)</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                <!-- Destination Card 1 -->
+                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-brand-dark">أبلسة</h3>
+                            <span class="text-xs text-slate-500"><i class="fa-solid fa-route text-slate-400"></i> المسافة: ~100 كم</span>
+                        </div>
+                        <span class="px-3 py-1 bg-orange-100 text-brand-orange font-black text-lg rounded-xl">10,000 دج</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">نقل مباشر من تمنراست إلى أبلسة لحمولات حتى 2 طن.</p>
+                    <button onclick="quickSelectDestination('أبلسة')" class="w-full py-2.5 bg-slate-100 hover:bg-brand-orange hover:text-white font-bold text-sm text-slate-700 rounded-xl transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-calendar-check"></i> احجز لهذه الوجهة
+                    </button>
+                </div>
+
+                <!-- Destination Card 2 -->
+                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-brand-dark">سيلت</h3>
+                            <span class="text-xs text-slate-500"><i class="fa-solid fa-route text-slate-400"></i> المسافة: ~140 كم</span>
+                        </div>
+                        <span class="px-3 py-1 bg-orange-100 text-brand-orange font-black text-lg rounded-xl">15,000 دج</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">نقل مباشر من تمنراست إلى سيلت لحمولات حتى 2 طن.</p>
+                    <button onclick="quickSelectDestination('سيلت')" class="w-full py-2.5 bg-slate-100 hover:bg-brand-orange hover:text-white font-bold text-sm text-slate-700 rounded-xl transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-calendar-check"></i> احجز لهذه الوجهة
+                    </button>
+                </div>
+
+                <!-- Destination Card 3 -->
+                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-brand-dark">عين أمقل</h3>
+                            <span class="text-xs text-slate-500"><i class="fa-solid fa-route text-slate-400"></i> المسافة: ~130 كم</span>
+                        </div>
+                        <span class="px-3 py-1 bg-orange-100 text-brand-orange font-black text-lg rounded-xl">15,000 دج</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">نقل مباشر من تمنراست إلى عين أمقل لحمولات حتى 2 طن.</p>
+                    <button onclick="quickSelectDestination('عين أمقل')" class="w-full py-2.5 bg-slate-100 hover:bg-brand-orange hover:text-white font-bold text-sm text-slate-700 rounded-xl transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-calendar-check"></i> احجز لهذه الوجهة
+                    </button>
+                </div>
+
+                <!-- Destination Card 4 -->
+                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-brand-dark">إدلس</h3>
+                            <span class="text-xs text-slate-500"><i class="fa-solid fa-route text-slate-400"></i> المسافة: ~210 كم</span>
+                        </div>
+                        <span class="px-3 py-1 bg-orange-100 text-brand-orange font-black text-lg rounded-xl">15,000 دج</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">نقل مباشر من تمنراست إلى إدلس لحمولات حتى 2 طن.</p>
+                    <button onclick="quickSelectDestination('إدلس')" class="w-full py-2.5 bg-slate-100 hover:bg-brand-orange hover:text-white font-bold text-sm text-slate-700 rounded-xl transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-calendar-check"></i> احجز لهذه الوجهة
+                    </button>
+                </div>
+
+                <!-- Destination Card 5 -->
+                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-brand-dark">تاظروك</h3>
+                            <span class="text-xs text-slate-500"><i class="fa-solid fa-route text-slate-400"></i> المسافة: ~150 كم</span>
+                        </div>
+                        <span class="px-3 py-1 bg-orange-100 text-brand-orange font-black text-lg rounded-xl">20,000 دج</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">نقل مباشر من تمنراست إلى تاظروك لحمولات حتى 2 طن.</p>
+                    <button onclick="quickSelectDestination('تاظروك')" class="w-full py-2.5 bg-slate-100 hover:bg-brand-orange hover:text-white font-bold text-sm text-slate-700 rounded-xl transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-calendar-check"></i> احجز لهذه الوجهة
+                    </button>
+                </div>
+
+                <!-- Destination Card 6 -->
+                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden border-r-4 border-r-brand-orange">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-brand-dark">تينزواتين</h3>
+                            <span class="text-xs text-slate-500"><i class="fa-solid fa-route text-slate-400"></i> المسافة: ~500 كم</span>
+                        </div>
+                        <span class="px-3 py-1 bg-orange-100 text-brand-orange font-black text-lg rounded-xl">60,000 دج</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">رحلة صحراوية مجهزة لنقل البضائع لحمولات حتى 2 طن.</p>
+                    <button onclick="quickSelectDestination('تينزواتين')" class="w-full py-2.5 bg-slate-100 hover:bg-brand-orange hover:text-white font-bold text-sm text-slate-700 rounded-xl transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-calendar-check"></i> احجز لهذه الوجهة
+                    </button>
+                </div>
+
+                <!-- Destination Card 7 -->
+                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden md:col-span-2 lg:col-span-1 border-r-4 border-r-brand-orange">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-brand-dark">تيمياوين</h3>
+                            <span class="text-xs text-slate-500"><i class="fa-solid fa-route text-slate-400"></i> المسافة: ~650 كم</span>
+                        </div>
+                        <span class="px-3 py-1 bg-orange-100 text-brand-orange font-black text-lg rounded-xl">70,000 دج</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">رحلة أقصى الحدود الجنوبية بنقل آمن وخاص حتى 2 طن.</p>
+                    <button onclick="quickSelectDestination('تيمياوين')" class="w-full py-2.5 bg-slate-100 hover:bg-brand-orange hover:text-white font-bold text-sm text-slate-700 rounded-xl transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-calendar-check"></i> احجز لهذه الوجهة
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION: INTERACTIVE MAP (LEAFLET.JS) -->
+    <section id="mapSection" class="py-12 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+                <div>
+                    <span class="px-3.5 py-1 bg-orange-100 text-brand-orange font-bold text-xs rounded-full">خريطة حية</span>
+                    <h2 class="text-2xl sm:text-3xl font-black text-brand-dark mt-2">الخريطة التفاعلية للمسارات</h2>
+                    <p class="text-slate-500 text-sm mt-1">اضغط على أي بلدية لعرض خط المسار والمسافة والتكلفة</p>
+                </div>
+
+                <!-- Map Controls Filter -->
+                <div class="flex flex-wrap gap-2" id="mapButtons">
+                    <!-- Dynamic Buttons Generated in JS -->
+                </div>
+            </div>
+
+            <!-- Map Container -->
+            <div class="relative shadow-xl rounded-3xl border border-slate-200 overflow-hidden">
+                <div id="leafletMap"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION: TRACKING SYSTEM -->
+    <section id="trackingSection" class="py-12 bg-slate-900 text-white relative overflow-hidden">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 relative z-10">
+            <div class="text-center max-w-xl mx-auto mb-8">
+                <span class="px-3.5 py-1 bg-brand-orange/20 text-brand-orange font-bold text-xs rounded-full border border-brand-orange/30">متابعة دقيقة</span>
+                <h2 class="text-2xl sm:text-3xl font-black mt-2">نظام تتبع الشحنات بالرمز</h2>
+                <p class="text-slate-400 text-sm mt-1">أدخل كود التتبع الخاص بك (مثل: ST-892014) لتبين حالة الشحنة</p>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md">
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" id="trackCodeInput" placeholder="أدخل كود الرحلة والتتبع (مثال: ST-892014)" class="flex-grow px-5 py-3.5 rounded-2xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-brand-orange text-center sm:text-right uppercase">
+                    <button id="searchTrackBtn" class="px-8 py-3.5 bg-brand-orange hover:bg-brand-orangeHover text-white font-bold rounded-2xl transition-all shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <span>بحث عن الشحنة</span>
+                    </button>
+                </div>
+
+                <!-- Tracking Result Box -->
+                <div id="trackingResult" class="hidden mt-6 p-6 rounded-2xl bg-slate-900/90 border border-slate-700 text-right space-y-4">
+                    <div class="flex justify-between items-center pb-4 border-b border-slate-800">
+                        <div>
+                            <span class="text-xs text-slate-400 block">كود الشحنة:</span>
+                            <span id="resCode" class="text-xl font-black text-brand-orange">ST-000000</span>
+                        </div>
+                        <span id="resStatus" class="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold text-xs rounded-full">
+                            قيد التجهيز للانطلاق
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                        <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                            <span class="text-slate-400 block">من:</span>
+                            <span class="font-bold text-slate-200">تمنراست</span>
+                        </div>
+                        <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                            <span class="text-slate-400 block">إلى:</span>
+                            <span id="resDest" class="font-bold text-slate-200">--</span>
+                        </div>
+                        <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                            <span class="text-slate-400 block">نوع البضاعة:</span>
+                            <span id="resCargo" class="font-bold text-slate-200">--</span>
+                        </div>
+                        <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                            <span class="text-slate-400 block">الوزن:</span>
+                            <span id="resWeight" class="font-bold text-slate-200">--</span>
+                        </div>
+                    </div>
+
+                    <div class="pt-2 flex items-center gap-3 text-xs text-slate-400">
+                        <i class="fa-solid fa-truck text-brand-orange text-lg"></i>
+                        <span>لأي تعديل أو استفسار بخصوص هذه الشحنة، اتصل بنا مباشرة على الرقم <strong class="text-white">0657892000</strong></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION: CONTACT & SUPPORT -->
+    <section id="contactSection" class="py-12 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-xl mx-auto mb-10">
+                <span class="px-3.5 py-1 bg-orange-100 text-brand-orange font-bold text-xs rounded-full">تواصل معنا</span>
+                <h2 class="text-2xl sm:text-4xl font-black text-brand-dark mt-2">الدعم وخدمة الزبائن</h2>
+                <p class="text-slate-500 text-sm mt-1">فريقنا متواجد على مدار الساعة للرد على استفساراتكم ونقل بضائعكم</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Phone -->
+                <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-center space-y-3">
+                    <div class="w-14 h-14 rounded-2xl bg-orange-100 text-brand-orange flex items-center justify-center mx-auto text-2xl">
+                        <i class="fa-solid fa-phone"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-brand-dark">رقم الهاتف Direct</h3>
+                    <p class="text-slate-500 text-xs">متاح طيلة أيام الأسبوع</p>
+                    <a href="tel:0657892000" class="inline-block text-xl font-black text-brand-orange hover:underline" dir="ltr">0657892000</a>
+                </div>
+
+                <!-- Email -->
+                <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-center space-y-3">
+                    <div class="w-14 h-14 rounded-2xl bg-orange-100 text-brand-orange flex items-center justify-center mx-auto text-2xl">
+                        <i class="fa-solid fa-envelope"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-brand-dark">البريد الإلكتروني</h3>
+                    <p class="text-slate-500 text-xs">للمراسلات وتأكيد الفواتير</p>
+                    <a href="mailto:swdytbdalh@gmail.com" class="inline-block text-sm font-bold text-brand-dark hover:text-brand-orange">swdytbdalh@gmail.com</a>
+                </div>
+
+                <!-- Address -->
+                <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-center space-y-3">
+                    <div class="w-14 h-14 rounded-2xl bg-orange-100 text-brand-orange flex items-center justify-center mx-auto text-2xl">
+                        <i class="fa-solid fa-location-dot"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-brand-dark">المقر الرئيسي</h3>
+                    <p class="text-slate-500 text-xs">ولاية تمنراست، الجزائر</p>
+                    <p class="font-bold text-slate-800 text-sm">حي السلام، تمنراست</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="bg-brand-dark text-slate-400 py-8 border-t border-slate-800 text-center text-xs">
+        <div class="max-w-7xl mx-auto px-4 space-y-3">
+            <p class="text-slate-200 font-bold text-base">سوداية ترانس - Soudaya Trans</p>
+            <p>متخصصون في نقل البضائع حتى 2 طن لجميع بلديات تمنراست | هاتف: 0657892000</p>
+            <p class="text-slate-600">جميع الحقوق محفوظة © 2026</p>
+        </div>
+    </footer>
+
+    <!-- Floating WhatsApp Button -->
+    <a href="https://wa.me/213657892000?text=مرحبا%20سوداية%20ترانس،%20أريد%20استفسار%20عن%20نقل%20بضاعة" target="_blank" class="fixed bottom-6 right-6 z-50 bg-emerald-500 hover:bg-emerald-600 text-white p-4 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 group border-2 border-white" title="تواصل عبر الواتساب">
+        <i class="fa-brands fa-whatsapp text-3xl"></i>
+        <span class="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out pr-0 group-hover:pr-2 text-sm font-bold">تواصل معنا واتساب</span>
+    </a>
+    <!-- SUCCESS MODAL FOR WAITING APPROVAL -->
+    <div id="bookingModal" class="fixed inset-0 z-50 bg-brand-dark/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 text-right shadow-2xl relative border border-slate-100 transform transition-transform scale-95" id="modalContent">
+            
+            <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
+                <i class="fa-brands fa-whatsapp"></i>
+            </div>
+
+            <h3 class="text-2xl font-black text-center text-brand-dark">تم توجيه طلبك عبر الواتساب!</h3>
+            <p class="text-xs text-slate-500 text-center mt-2 leading-relaxed">
+                تم تجهيز معلومات الحجز. يرجى إرسال الرسالة في تطبيق الواتساب لإكمال العملية.
+            </p>
+
+            <!-- Status Info Box -->
+            <div class="my-5 p-4 bg-orange-50 rounded-2xl border-2 border-brand-orange text-center space-y-2">
+                <div class="flex items-center justify-center gap-2 text-brand-orange font-bold text-sm">
+                    <i class="fa-solid fa-clock-rotate-left animate-spin"></i>
+                    <span>بانتظار موافقة الشركة</span>
+                </div>
+                <p class="text-xs text-slate-700 font-bold leading-relaxed">
+                    سيتم إرسال <span class="text-brand-orange font-black">كود التتبع الخاص بك</span> مباشرة عبر محادثة الواتساب فور مراجعة وموافقة إدارة سوداية ترانس على الرحلة.
+                </p>
+            </div>
+
+            <div class="space-y-2 text-xs text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
+                <div class="flex justify-between"><span>الوجهة المطلوبة:</span> <strong id="modalDest" class="text-slate-800">--</strong></div>
+                <div class="flex justify-between"><span>اسم المرسل:</span> <strong id="modalName" class="text-slate-800">--</strong></div>
+                <div class="flex justify-between"><span>التكلفة المقدرة:</span> <strong id="modalPrice" class="text-brand-orange font-bold">-- دج</strong></div>
+            </div>
+
+            <div class="space-y-3">
+                <a id="modalWaBtn" href="#" target="_blank" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md">
+                    <i class="fa-brands fa-whatsapp text-lg"></i>
+                    <span>الانتقال لتطبيق الواتساب الآن</span>
+                </a>
+                <button onclick="closeBookingModal()" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-xs">
+                    إغلاق النافذة
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // Store generated bookings in memory
+        const activeBookings = {
+            "ST-892014": { destination: "تاظروك", cargo: "أثاث منزل", weight: "1200 كجم", status: "قيد التجهيز للانطلاق" },
+            "ST-657890": { destination: "أبلسة", cargo: "سلع تجارية", weight: "800 كجم", status: "في الطريق إلى الوجهة" }
+        };
+
+        // Municipalities Coordinates Data
+        const destinationsData = {
+            "أبلسة": { lat: 22.8167, lng: 4.9833, price: "10,000 دج", dist: "100 كم" },
+            "سيلت": { lat: 22.9500, lng: 5.2000, price: "15,000 دج", dist: "140 كم" },
+            "عين أمقل": { lat: 23.7000, lng: 5.2833, price: "15,000 دج", dist: "130 كم" },
+            "إدلس": { lat: 23.8167, lng: 5.9333, price: "15,000 دج", dist: "210 كم" },
+            "تاظروك": { lat: 23.4167, lng: 6.2833, price: "20,000 دج", dist: "150 كم" },
+            "تينزواتين": { lat: 19.9500, lng: 2.9667, price: "60,000 دج", dist: "500 كم" },
+            "تيمياوين": { lat: 20.4500, lng: 1.8167, price: "70,000 دج", dist: "650 كم" }
+        };
+
+        const tamanrassetCoords = { lat: 22.7850, lng: 5.5228 };
+        let map, polylineLayer;
+
+        // Initialize Map
+        function initMap() {
+            map = L.map('leafletMap').setView([tamanrassetCoords.lat, tamanrassetCoords.lng], 7);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '© OpenStreetMap | سوداية ترانس'
+            }).addTo(map);
+
+            // Tamanrasset Main Hub Marker
+            const tamIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="background-color:#0F172A; color:#F97316; border:2px solid #F97316; padding:6px 10px; border-radius:12px; font-weight:bold; font-size:12px; font-family:Cairo; box-shadow:0 4px 10px rgba(0,0,0,0.3);">مركز الانطلاق (تمنراست)</div>`,
+                iconSize: [130, 40]
+            });
+            L.marker([tamanrassetCoords.lat, tamanrassetCoords.lng], { icon: tamIcon }).addTo(map);
+
+            // Render Map Buttons & Markers
+            const mapBtnsContainer = document.getElementById('mapButtons');
+            mapBtnsContainer.innerHTML = '';
+
+            Object.keys(destinationsData).forEach(name => {
+                const item = destinationsData[name];
+                
+                // Add Destination Marker
+                const marker = L.marker([item.lat, item.lng]).addTo(map);
+                marker.bindPopup(`
+                    <div style="font-family:Cairo; text-align:right;">
+                        <h4 style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#0F172A;">بلدية ${name}</h4>
+                        <p style="font-size:12px; margin:0; color:#64748B;">المسافة: ${item.dist}</p>
+                        <p style="font-size:14px; font-weight:bold; color:#F97316; margin-top:4px;">السعر الثابت: ${item.price}</p>
+                    </div>
+                `);
+
+                // Create Map Filter Buttons
+                const btn = document.createElement('button');
+                btn.className = 'px-3 py-1.5 bg-slate-100 hover:bg-brand-orange hover:text-white text-slate-700 font-bold text-xs rounded-xl transition-all shadow-sm';
+                btn.innerText = name;
+                btn.onclick = () => focusDestinationOnMap(name);
+                mapBtnsContainer.appendChild(btn);
+            });
+        }
+
+        // Focus & Draw Route on Map
+        function focusDestinationOnMap(name) {
+            const dest = destinationsData[name];
+            if (!dest) return;
+
+            if (polylineLayer) map.removeLayer(polylineLayer);
+
+            const routeCoords = [
+                [tamanrassetCoords.lat, tamanrassetCoords.lng],
+                [dest.lat, dest.lng]
+            ];
+
+            polylineLayer = L.polyline(routeCoords, {
+                color: '#F97316',
+                weight: 4,
+                dashArray: '8, 8'
+            }).addTo(map);
+
+            map.fitBounds(polylineLayer.getBounds(), { padding: [50, 50] });
+        }
+
+        // DOM Loaded Listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+
+            // Mobile Menu Drawer Toggle
+            const menuBtn = document.getElementById('menuBtn');
+            const closeDrawer = document.getElementById('closeDrawer');
+            const drawer = document.getElementById('drawer');
+            const drawerContent = document.getElementById('drawerContent');
+
+            if (menuBtn && drawer && drawerContent) {
+                menuBtn.addEventListener('click', () => {
+                    drawer.classList.remove('hidden');
+                    setTimeout(() => drawerContent.classList.remove('translate-x-full'), 10);
+                });
+
+                const hideDrawer = () => {
+                    drawerContent.classList.add('translate-x-full');
+                    setTimeout(() => drawer.classList.add('hidden'), 300);
+                };
+
+                closeDrawer.addEventListener('click', hideDrawer);
+                drawer.addEventListener('click', (e) => {
+                    if (e.target === drawer) hideDrawer();
+                });
+            }
+
+            // Weight Range Slider
+            const weightInput = document.getElementById('cargoWeight');
+            const weightDisplay = document.getElementById('weightValue');
+            if (weightInput && weightDisplay) {
+                weightInput.addEventListener('input', function() {
+                    const val = this.value;
+                    weightDisplay.textContent = val >= 1000 ? `${val / 1000} طن (${val} كجم)` : `${val} كجم`;
+                });
+            }
+
+            // Select Destination Change => Display Price
+            const destSelect = document.getElementById('bookDestination');
+            const priceBox = document.getElementById('priceBox');
+            const calcPrice = document.getElementById('calculatedPrice');
+
+            if (destSelect) {
+                destSelect.addEventListener('change', function() {
+                    const selectedOpt = this.options[this.selectedIndex];
+                    const price = selectedOpt.getAttribute('data-price');
+                    if (price) {
+                        priceBox.classList.remove('hidden');
+                        calcPrice.textContent = `${Number(price).toLocaleString()} دج`;
+                        focusDestinationOnMap(this.value);
+                    }
+                });
+            }
+
+            // Handle Booking Form Submission & Direct WhatsApp Redirection
+            const bookingForm = document.getElementById('bookingForm');
+            if (bookingForm) {
+                bookingForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    const destination = destSelect.value;
+                    const senderName = document.getElementById('senderName').value;
+                    const senderPhone = document.getElementById('senderPhone').value;
+                    const cargo = document.getElementById('cargoType').value;
+                    const weight = weightDisplay.textContent;
+                    const selectedOpt = destSelect.options[destSelect.selectedIndex];
+                    const price = selectedOpt.getAttribute('data-price');
+                    const formattedPrice = Number(price).toLocaleString();
+
+                    // Format WhatsApp Message
+                    const waMessage = `🚚 *طلب حجز رحلة جديدة - سوداية ترانس*%0A` +
+                        `----------------------------------%0A` +
+                        `📍 *الوجهة:* من تمنراست إلى ${destination}%0A` +
+                        `👤 *اسم المرسل:* ${senderName}%0A` +
+                        `📞 *رقم الهاتف:* ${senderPhone}%0A` +
+                        `📦 *نوع البضاعة:* ${cargo}%0A` +
+                        `⚖️ *الوزن التقريبي:* ${weight}%0A` +
+                        `💰 *التكلفة الثابتة:* ${formattedPrice} دج%0A` +
+                        `----------------------------------%0A` +
+                        `يرجى تأكيد الطلب وتزويدي بكود التتبع الخاص بالرحلة.`;
+
+                    const waUrl = `https://wa.me/213657892000?text=${waMessage}`;
+
+                    // Set Modal Details & Link
+                    document.getElementById('modalDest').textContent = destination;
+                    document.getElementById('modalName').textContent = senderName;
+                    document.getElementById('modalPrice').textContent = `${formattedPrice} دج`;
+                    document.getElementById('modalWaBtn').href = waUrl;
+
+                    // Show Waiting Approval Modal
+                    const modal = document.getElementById('bookingModal');
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+
+                    // Automatically open WhatsApp in new tab
+                    window.open(waUrl, '_blank');
+                });
+            }
+
+            // Tracking Search Logic
+            const searchTrackBtn = document.getElementById('searchTrackBtn');
+            if (searchTrackBtn) {
+                searchTrackBtn.addEventListener('click', function() {
+                    const input = document.getElementById('trackCodeInput').value.trim().toUpperCase();
+                    const resBox = document.getElementById('trackingResult');
+
+                    if (!input) return;
+
+                    if (activeBookings[input]) {
+                        const data = activeBookings[input];
+                        document.getElementById('resCode').textContent = input;
+                        document.getElementById('resDest').textContent = data.destination;
+                        document.getElementById('resCargo').textContent = data.cargo;
+                        document.getElementById('resWeight').textContent = data.weight;
+                        document.getElementById('resStatus').textContent = data.status;
+                        resBox.classList.remove('hidden');
+                    } else {
+                        document.getElementById('resCode').textContent = input;
+                        document.getElementById('resDest').textContent = "غير مسجل";
+                        document.getElementById('resCargo').textContent = "--";
+                        document.getElementById('resWeight').textContent = "--";
+                        document.getElementById('resStatus').textContent = "كود غير موجود، تواصل بالهاتف 0657892000";
+                        resBox.classList.remove('hidden');
+                    }
+                });
+            }
+        });
+
+        // Global Helper Functions
+        function quickSelectDestination(name) {
+            const select = document.getElementById('bookDestination');
+            if (select) {
+                select.value = name;
+                select.dispatchEvent(new Event('change'));
+            }
+            const bookingSec = document.getElementById('bookingSection');
+            if (bookingSec) {
+                bookingSec.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        function closeBookingModal() {
+            const modal = document.getElementById('bookingModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            const form = document.getElementById('bookingForm');
+            if (form) form.reset();
+            const priceBox = document.getElementById('priceBox');
+            if (priceBox) priceBox.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
